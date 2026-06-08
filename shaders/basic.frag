@@ -5,7 +5,7 @@ in vec2 vTexCoord;
 
 out vec4 FragColor;
 
-uniform vec3 uColor;
+uniform sampler2D uTexture;
 
 void main()
 {
@@ -14,5 +14,7 @@ void main()
     vec3 lightDir = normalize(vec3(0.4, 1.0, 0.6));
     float diff = max(dot(normalize(vNormal), lightDir), 0.0);
     float shade = 0.3 + 0.7 * diff;
-    FragColor = vec4(uColor * shade, 1.0);
+
+    vec3 texColor = texture(uTexture, vTexCoord).rgb;
+    FragColor = vec4(texColor * shade, 1.0);
 }

@@ -1,9 +1,8 @@
-"""Labirent oyunu - 4. adım: statik labirent geometrisi.
+"""Labirent oyunu - 5. adım: duvar ve zemin dokuları.
 
-10x10'luk sabit labirent. Duvarlar küp instance'ları olarak; zemin
-ölçeklenmiş ince bir küp olarak çiziliyor. Kamera başlangıçta yol
-hücresine yerleştiriliyor; çarpışma kontrolü henüz yok, duvarların
-içinden geçebiliyorsun (sonraki adımda eklenecek).
+Duvarlar için wall.png, zemin için floor.png Pillow ile yüklenip
+GL_TEXTURE_2D olarak GPU'ya aktarılıyor. Mipmap üretiliyor, REPEAT
+sarma modu kullanılıyor. Çarpışma kontrolü bir sonraki adımda.
 """
 
 import sys
@@ -17,6 +16,7 @@ from src.camera import Camera
 from src.maze import Maze
 from src.mesh import Cube
 from src.shader import Shader
+from src.texture import Texture
 
 
 WINDOW_WIDTH = 1280
@@ -24,9 +24,6 @@ WINDOW_HEIGHT = 720
 WINDOW_TITLE = "Labirent Oyunu - Bilgisayar Grafikleri Projesi"
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-
-WALL_COLOR = glm.vec3(0.55, 0.50, 0.45)
-FLOOR_COLOR = glm.vec3(0.20, 0.25, 0.20)
 
 
 def on_key(window, key, scancode, action, mods):
@@ -71,6 +68,12 @@ def main() -> int:
     cube = Cube()
     maze = Maze()
 
+    wall_tex = Texture(PROJECT_ROOT / "assets" / "wall.png")
+    floor_tex = Texture(PROJECT_ROOT / "assets" / "floor.png")
+
+    shader.use()
+    shader.set_int("uTexture", 0)  # sampler texture unit 0'dan okusun
+
     camera = Camera(position=maze.start_world_position(eye_height=1.0))
     glfw.set_cursor_pos_callback(window, lambda w, x, y: camera.process_mouse(x, y))
 
@@ -100,13 +103,15 @@ def main() -> int:
         shader.set_mat4("uProjection", projection)
         shader.set_mat4("uView", view)
 
-        # Zemin
+        # Zemin: dokuyu defalarca tile et, böylece plakalar net görünür
+        floor_tex.bind(0)
+        shader.set_float("uTexScale", 2.5)
         shader.set_mat4("uModel", floor_model)
-        shader.set_vec3("uColor", FLOOR_COLOR)
         cube.draw()
 
-        # Duvarlar
-        shader.set_vec3("uColor", WALL_COLOR)
+        # Duvarlar: her duvar küpü 1 doku gösterir
+        wall_tex.bind(0)
+        shader.set_float("uTexScale", 1.0)
         for pos in wall_positions:
             model = glm.translate(glm.mat4(1.0), pos)
             model = glm.scale(model, wall_scale)
@@ -117,6 +122,8 @@ def main() -> int:
         glfw.poll_events()
 
     cube.delete()
+    wall_tex.delete()
+    floor_tex.delete()
     glfw.terminate()
     return 0
 
