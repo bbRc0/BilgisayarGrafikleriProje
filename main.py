@@ -1,8 +1,8 @@
-"""Labirent oyunu - 2. adım: shader sistemi + ilk küp.
+"""Labirent oyunu - 3. adım: FPS kamera (WASD + mouse).
 
-Şimdilik sabit bir kameradan, kendi etrafında dönen renkli bir küpe
-bakıyoruz. Sonraki adımlarda kamera, labirent geometrisi, texture,
-ışıklandırma ve çarpışma kontrolü eklenecek.
+Sahnede 3x3 grid halinde sabit küpler var ki kamera hareket ederken
+mekândaki konumun değiştiği görülebilsin. Sonraki adımlarda bu küpler
+labirent duvarlarına dönüşecek.
 """
 
 import sys
@@ -12,6 +12,7 @@ import glfw
 import glm
 from OpenGL import GL
 
+from src.camera import Camera
 from src.mesh import Cube
 from src.shader import Shader
 
@@ -52,6 +53,9 @@ def main() -> int:
     glfw.set_key_callback(window, on_key)
     glfw.set_framebuffer_size_callback(window, on_framebuffer_size)
 
+    # FPS oyunlarında olduğu gibi mouse'u yakala ve gizle.
+    glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
+
     print("OpenGL satıcı : ", GL.glGetString(GL.GL_VENDOR).decode(), flush=True)
     print("OpenGL sürüm  : ", GL.glGetString(GL.GL_VERSION).decode(), flush=True)
     print("GLSL sürüm    : ", GL.glGetString(GL.GL_SHADING_LANGUAGE_VERSION).decode(), flush=True)
@@ -63,25 +67,52 @@ def main() -> int:
     shader = Shader(PROJECT_ROOT / "shaders" / "basic.vert", PROJECT_ROOT / "shaders" / "basic.frag")
     cube = Cube()
 
+    camera = Camera(position=glm.vec3(0.0, 1.0, 6.0))
+    glfw.set_cursor_pos_callback(window, lambda w, x, y: camera.process_mouse(x, y))
+
     projection = glm.perspective(glm.radians(60.0), WINDOW_WIDTH / WINDOW_HEIGHT, 0.1, 100.0)
-    view = glm.lookAt(glm.vec3(2.5, 2.0, 3.5), glm.vec3(0.0, 0.0, 0.0), glm.vec3(0.0, 1.0, 0.0))
+
+    # Test sahnesi: 3x3 grid küpler (z=0 düzleminde)
+    cube_positions = [
+        glm.vec3(x * 2.5, 0.5, z * 2.5)
+        for x in (-1, 0, 1)
+        for z in (-1, 0, 1)
+    ]
+    cube_colors = [
+        glm.vec3(0.85, 0.55, 0.25),
+        glm.vec3(0.45, 0.70, 0.35),
+        glm.vec3(0.30, 0.55, 0.85),
+        glm.vec3(0.85, 0.40, 0.60),
+        glm.vec3(0.75, 0.75, 0.30),
+        glm.vec3(0.55, 0.40, 0.80),
+        glm.vec3(0.40, 0.80, 0.75),
+        glm.vec3(0.90, 0.65, 0.45),
+        glm.vec3(0.65, 0.65, 0.65),
+    ]
+
+    last_time = glfw.get_time()
 
     while not glfw.window_should_close(window):
-        t = glfw.get_time()
+        now = glfw.get_time()
+        dt = now - last_time
+        last_time = now
+
+        camera.process_keyboard(window, dt)
 
         GL.glClearColor(0.10, 0.12, 0.16, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
 
-        model = glm.mat4(1.0)
-        model = glm.rotate(model, t * 0.7, glm.vec3(0.0, 1.0, 0.0))
-        model = glm.rotate(model, t * 0.4, glm.vec3(1.0, 0.0, 0.0))
+        view = camera.get_view()
 
         shader.use()
         shader.set_mat4("uProjection", projection)
         shader.set_mat4("uView", view)
-        shader.set_mat4("uModel", model)
-        shader.set_vec3("uColor", glm.vec3(0.85, 0.55, 0.25))
-        cube.draw()
+
+        for pos, color in zip(cube_positions, cube_colors):
+            model = glm.translate(glm.mat4(1.0), pos)
+            shader.set_mat4("uModel", model)
+            shader.set_vec3("uColor", color)
+            cube.draw()
 
         glfw.swap_buffers(window)
         glfw.poll_events()
