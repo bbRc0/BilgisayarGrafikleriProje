@@ -13,3 +13,6 @@ dist/
 .env
 .venv/
 venv/
+
+# Lokal olarak uretilen rapor
+RAPOR.docx

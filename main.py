@@ -15,7 +15,7 @@ from OpenGL import GL
 
 from src.camera import Camera
 from src.maze import Maze
-from src.mesh import Cube
+from src.mesh import Cube, ScreenQuad
 from src.shader import Shader
 from src.texture import Texture
 
@@ -27,13 +27,12 @@ WINDOW_TITLE = "Labirent Oyunu - Bilgisayar Grafikleri Projesi"
 PROJECT_ROOT = Path(__file__).resolve().parent
 
 
-def on_key(window, key, scancode, action, mods):
-    if key == glfw.KEY_ESCAPE and action == glfw.PRESS:
-        glfw.set_window_should_close(window, True)
-
-
 def on_framebuffer_size(window, width, height):
     GL.glViewport(0, 0, width, height)
+
+
+WIN_DISTANCE = 1.5    # Space ile kazanmak için FINISH'e olması gereken en uzak mesafe
+WIN_HOLD_TIME = 3.0   # Kazanma ekranı ekranda kalma süresi (sn)
 
 
 def main() -> int:
@@ -53,7 +52,6 @@ def main() -> int:
         return 1
 
     glfw.make_context_current(window)
-    glfw.set_key_callback(window, on_key)
     glfw.set_framebuffer_size_callback(window, on_framebuffer_size)
     glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
 
@@ -67,14 +65,20 @@ def main() -> int:
 
     shader = Shader(PROJECT_ROOT / "shaders" / "basic.vert", PROJECT_ROOT / "shaders" / "basic.frag")
     cube = Cube()
+    screen_quad = ScreenQuad()
     maze = Maze()
 
     wall_tex = Texture(PROJECT_ROOT / "assets" / "wall.png")
     floor_tex = Texture(PROJECT_ROOT / "assets" / "floor.png")
     finish_tex = Texture(PROJECT_ROOT / "assets" / "finish.png")
+    win_textures = {
+        sec: Texture(PROJECT_ROOT / "assets" / f"win_{sec}.png")
+        for sec in (3, 2, 1)
+    }
 
     shader.use()
     shader.set_int("uTexture", 0)  # sampler texture unit 0'dan okusun
+    shader.set_float("uUnlit", 0.0)  # default: aydınlatmalı (lit)
 
     # Aydınlatma uniform'ları (sahne boyunca sabit)
     light_dir = glm.normalize(glm.vec3(0.4, -1.0, 0.5))   # yukarıdan-yandan aşağı
@@ -98,12 +102,72 @@ def main() -> int:
     finish_position = maze.exit_world_position(height=1.0)
     finish_scale = glm.vec3(0.7)
 
+    # Oyun durumu
+    won = False
+    win_time = 0.0
+
+    def on_key(win, key, scancode, action, mods):
+        nonlocal won, win_time
+        if action != glfw.PRESS:
+            return
+        if key == glfw.KEY_ESCAPE:
+            glfw.set_window_should_close(win, True)
+        elif won:
+            # Kazandıktan sonra ESC dışında bir şey kabul etme
+            return
+        elif key == glfw.KEY_R:
+            camera.position = maze.start_world_position(eye_height=1.0)
+            print("[oyun] Baslangic noktasina donuldu.", flush=True)
+        elif key == glfw.KEY_SPACE:
+            dx = camera.position.x - finish_position.x
+            dz = camera.position.z - finish_position.z
+            dist = (dx * dx + dz * dz) ** 0.5
+            if dist < WIN_DISTANCE:
+                won = True
+                win_time = glfw.get_time()
+                print("[oyun] *** KAZANDIN! ***", flush=True)
+            else:
+                print(f"[oyun] FINISH cok uzak (mesafe: {dist:.2f}). Daha yaklas.", flush=True)
+
+    glfw.set_key_callback(window, on_key)
+
     last_time = glfw.get_time()
 
     while not glfw.window_should_close(window):
         now = glfw.get_time()
         dt = now - last_time
         last_time = now
+
+        # Kazandıktan sonra: tam ekran "KAZANDIN" overlay'i + 3 sn geri sayım
+        if won:
+            elapsed = now - win_time
+            if elapsed >= WIN_HOLD_TIME:
+                glfw.set_window_should_close(window, True)
+
+            # Kalan saniye sayısı: 3 → 2 → 1
+            remaining = max(1, min(3, int(WIN_HOLD_TIME - elapsed) + 1))
+
+            GL.glClearColor(0.0, 0.0, 0.0, 1.0)
+            GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
+
+            GL.glDisable(GL.GL_DEPTH_TEST)
+            GL.glDisable(GL.GL_CULL_FACE)
+
+            shader.use()
+            shader.set_float("uUnlit", 1.0)
+            shader.set_float("uTexScale", 1.0)
+            shader.set_mat4("uProjection", glm.mat4(1.0))
+            shader.set_mat4("uView", glm.mat4(1.0))
+            shader.set_mat4("uModel", glm.mat4(1.0))
+            win_textures[remaining].bind(0)
+            screen_quad.draw()
+
+            GL.glEnable(GL.GL_DEPTH_TEST)
+            GL.glEnable(GL.GL_CULL_FACE)
+
+            glfw.swap_buffers(window)
+            glfw.poll_events()
+            continue
 
         camera.process_keyboard(window, dt, maze)
 
@@ -113,13 +177,15 @@ def main() -> int:
         view = camera.get_view()
 
         shader.use()
+        shader.set_float("uUnlit", 0.0)
         shader.set_mat4("uProjection", projection)
         shader.set_mat4("uView", view)
         shader.set_vec3("uViewPos", camera.position)
 
-        # Zemin: dokuyu defalarca tile et, böylece plakalar net görünür
+        # Zemin: doku ölçeği labirent boyutuna göre. Her ~4 dünya birimine
+        # 1 texture düşecek şekilde tile edilir (10x10'da 2.5, 15x15'te 3.75).
         floor_tex.bind(0)
-        shader.set_float("uTexScale", 2.5)
+        shader.set_float("uTexScale", maze.width * 0.25)
         shader.set_mat4("uModel", floor_model)
         cube.draw()
 
@@ -145,9 +211,12 @@ def main() -> int:
         glfw.poll_events()
 
     cube.delete()
+    screen_quad.delete()
     wall_tex.delete()
     floor_tex.delete()
     finish_tex.delete()
+    for tex in win_textures.values():
+        tex.delete()
     glfw.terminate()
     return 0
 

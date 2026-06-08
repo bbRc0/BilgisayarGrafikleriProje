@@ -102,3 +102,53 @@ class Cube:
         GL.glDeleteVertexArrays(1, [self.vao])
         GL.glDeleteBuffers(1, [self.vbo])
         GL.glDeleteBuffers(1, [self.ebo])
+
+
+# Tam ekran NDC quad: (-1,-1)'den (1,1)'e iki üçgen. UV (0,0) sol altta.
+# Cube ile aynı vertex formatı (pos.xyz + normal.xyz + uv.uv) kullandığı için
+# aynı shader'la çizilebilir. Identity model/view/projection ile basıldığında
+# ekranı tam kaplar.
+_SCREENQUAD_VERTICES = np.array(
+    [
+        -1.0, -1.0, 0.0,   0.0, 0.0, 1.0,   0.0, 0.0,
+         1.0, -1.0, 0.0,   0.0, 0.0, 1.0,   1.0, 0.0,
+         1.0,  1.0, 0.0,   0.0, 0.0, 1.0,   1.0, 1.0,
+        -1.0,  1.0, 0.0,   0.0, 0.0, 1.0,   0.0, 1.0,
+    ],
+    dtype=np.float32,
+)
+_SCREENQUAD_INDICES = np.array([0, 1, 2, 2, 3, 0], dtype=np.uint32)
+
+
+class ScreenQuad:
+    def __init__(self) -> None:
+        self.vao = GL.glGenVertexArrays(1)
+        self.vbo = GL.glGenBuffers(1)
+        self.ebo = GL.glGenBuffers(1)
+
+        GL.glBindVertexArray(self.vao)
+
+        GL.glBindBuffer(GL.GL_ARRAY_BUFFER, self.vbo)
+        GL.glBufferData(GL.GL_ARRAY_BUFFER, _SCREENQUAD_VERTICES.nbytes, _SCREENQUAD_VERTICES, GL.GL_STATIC_DRAW)
+
+        GL.glBindBuffer(GL.GL_ELEMENT_ARRAY_BUFFER, self.ebo)
+        GL.glBufferData(GL.GL_ELEMENT_ARRAY_BUFFER, _SCREENQUAD_INDICES.nbytes, _SCREENQUAD_INDICES, GL.GL_STATIC_DRAW)
+
+        GL.glEnableVertexAttribArray(0)
+        GL.glVertexAttribPointer(0, 3, GL.GL_FLOAT, GL.GL_FALSE, _STRIDE, ctypes.c_void_p(0))
+        GL.glEnableVertexAttribArray(1)
+        GL.glVertexAttribPointer(1, 3, GL.GL_FLOAT, GL.GL_FALSE, _STRIDE, ctypes.c_void_p(3 * 4))
+        GL.glEnableVertexAttribArray(2)
+        GL.glVertexAttribPointer(2, 2, GL.GL_FLOAT, GL.GL_FALSE, _STRIDE, ctypes.c_void_p(6 * 4))
+
+        GL.glBindVertexArray(0)
+        self.index_count = len(_SCREENQUAD_INDICES)
+
+    def draw(self) -> None:
+        GL.glBindVertexArray(self.vao)
+        GL.glDrawElements(GL.GL_TRIANGLES, self.index_count, GL.GL_UNSIGNED_INT, None)
+
+    def delete(self) -> None:
+        GL.glDeleteVertexArrays(1, [self.vao])
+        GL.glDeleteBuffers(1, [self.vbo])
+        GL.glDeleteBuffers(1, [self.ebo])

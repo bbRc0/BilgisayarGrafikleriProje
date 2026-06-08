@@ -162,6 +162,58 @@ def make_finish() -> Image.Image:
     return img
 
 
+def make_win(seconds_remaining: int) -> Image.Image:
+    """Tam ekran kazanma overlay'i. seconds_remaining alt yazıda gösterilir."""
+    w, h = 1024, 576  # 16:9, pencere aspect ratio'suyla uyumlu
+    img = Image.new("RGB", (w, h), (15, 25, 35))   # koyu lacivert zemin
+    draw = ImageDraw.Draw(img)
+
+    # Big bold font for headline, smaller for hint
+    big_font = None
+    small_font = None
+    for path in ("C:/Windows/Fonts/arialbd.ttf", "C:/Windows/Fonts/arial.ttf"):
+        try:
+            big_font = ImageFont.truetype(path, 140)
+            small_font = ImageFont.truetype(path, 36)
+            break
+        except OSError:
+            continue
+    if big_font is None:
+        big_font = ImageFont.load_default()
+        small_font = ImageFont.load_default()
+
+    # KAZANDIN! (büyük, sarı, ortalı)
+    text = "KAZANDIN!"
+    bbox = draw.textbbox((0, 0), text, font=big_font)
+    tw = bbox[2] - bbox[0]
+    th = bbox[3] - bbox[1]
+    x = (w - tw) // 2 - bbox[0]
+    y = h // 2 - th - 20
+    draw.text((x + 4, y + 4), text, font=big_font, fill=(0, 0, 0))     # gölge
+    draw.text((x, y), text, font=big_font, fill=(255, 220, 70))         # sarı
+
+    # Alt mesaj
+    sub = "Labirenti tamamladin"
+    bbox2 = draw.textbbox((0, 0), sub, font=small_font)
+    sw = bbox2[2] - bbox2[0]
+    sx = (w - sw) // 2 - bbox2[0]
+    sy = h // 2 + 30
+    draw.text((sx, sy), sub, font=small_font, fill=(220, 220, 220))
+
+    # Geri sayım
+    hint = f"Pencere {seconds_remaining} saniyede kapanacak"
+    bbox3 = draw.textbbox((0, 0), hint, font=small_font)
+    hw = bbox3[2] - bbox3[0]
+    hx = (w - hw) // 2 - bbox3[0]
+    hy = h - 80
+    draw.text((hx, hy), hint, font=small_font, fill=(160, 160, 170))
+
+    # Çerçeve
+    draw.rectangle([(8, 8), (w - 9, h - 9)], outline=(255, 220, 70), width=5)
+
+    return img
+
+
 def main() -> None:
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -176,6 +228,11 @@ def main() -> None:
     print(f"Yazildi: {wall_path}")
     print(f"Yazildi: {floor_path}")
     print(f"Yazildi: {finish_path}")
+
+    for sec in (3, 2, 1):
+        path = ASSETS_DIR / f"win_{sec}.png"
+        make_win(sec).save(path)
+        print(f"Yazildi: {path}")
 
 
 if __name__ == "__main__":

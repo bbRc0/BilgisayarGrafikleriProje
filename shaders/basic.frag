@@ -21,8 +21,18 @@ uniform float uShininess;
 // Specular bileşeninin gücü
 uniform float uSpecularStrength;
 
+// 1.0 → aydınlatma bypass, texture rengini direkt göster (UI / overlay için)
+uniform float uUnlit;
+
 void main()
 {
+    vec3 texColor = texture(uTexture, vTexCoord).rgb;
+
+    if (uUnlit > 0.5) {
+        FragColor = vec4(texColor, 1.0);
+        return;
+    }
+
     vec3 N = normalize(vNormal);
     vec3 L = normalize(-uLightDir);          // yüzeyden ışık kaynağına doğru vektör
     vec3 V = normalize(uViewPos - vWorldPos); // yüzeyden kameraya
@@ -30,8 +40,6 @@ void main()
 
     float diff = max(dot(N, L), 0.0);
     float spec = pow(max(dot(N, H), 0.0), uShininess);
-
-    vec3 texColor = texture(uTexture, vTexCoord).rgb;
 
     vec3 ambient  = uAmbient * texColor;
     vec3 diffuse  = diff * uLightColor * texColor;

@@ -38,6 +38,8 @@ python main.py
 |-----|-------|
 | `W` `A` `S` `D` | Hareket (ileri / sol / geri / sağ) |
 | Mouse | Kamera bakış yönü |
+| `R` | Başlangıç noktasına ışınlan |
+| `Space` | FINISH küpüne yakınken kazanma kontrolü |
 | `ESC` | Çıkış |
 
 ## Yazar
