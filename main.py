@@ -1,8 +1,9 @@
-"""Labirent oyunu - 3. adım: FPS kamera (WASD + mouse).
+"""Labirent oyunu - 4. adım: statik labirent geometrisi.
 
-Sahnede 3x3 grid halinde sabit küpler var ki kamera hareket ederken
-mekândaki konumun değiştiği görülebilsin. Sonraki adımlarda bu küpler
-labirent duvarlarına dönüşecek.
+10x10'luk sabit labirent. Duvarlar küp instance'ları olarak; zemin
+ölçeklenmiş ince bir küp olarak çiziliyor. Kamera başlangıçta yol
+hücresine yerleştiriliyor; çarpışma kontrolü henüz yok, duvarların
+içinden geçebiliyorsun (sonraki adımda eklenecek).
 """
 
 import sys
@@ -13,6 +14,7 @@ import glm
 from OpenGL import GL
 
 from src.camera import Camera
+from src.maze import Maze
 from src.mesh import Cube
 from src.shader import Shader
 
@@ -22,6 +24,9 @@ WINDOW_HEIGHT = 720
 WINDOW_TITLE = "Labirent Oyunu - Bilgisayar Grafikleri Projesi"
 
 PROJECT_ROOT = Path(__file__).resolve().parent
+
+WALL_COLOR = glm.vec3(0.55, 0.50, 0.45)
+FLOOR_COLOR = glm.vec3(0.20, 0.25, 0.20)
 
 
 def on_key(window, key, scancode, action, mods):
@@ -52,8 +57,6 @@ def main() -> int:
     glfw.make_context_current(window)
     glfw.set_key_callback(window, on_key)
     glfw.set_framebuffer_size_callback(window, on_framebuffer_size)
-
-    # FPS oyunlarında olduğu gibi mouse'u yakala ve gizle.
     glfw.set_input_mode(window, glfw.CURSOR, glfw.CURSOR_DISABLED)
 
     print("OpenGL satıcı : ", GL.glGetString(GL.GL_VENDOR).decode(), flush=True)
@@ -66,29 +69,18 @@ def main() -> int:
 
     shader = Shader(PROJECT_ROOT / "shaders" / "basic.vert", PROJECT_ROOT / "shaders" / "basic.frag")
     cube = Cube()
+    maze = Maze()
 
-    camera = Camera(position=glm.vec3(0.0, 1.0, 6.0))
+    camera = Camera(position=maze.start_world_position(eye_height=1.0))
     glfw.set_cursor_pos_callback(window, lambda w, x, y: camera.process_mouse(x, y))
 
     projection = glm.perspective(glm.radians(60.0), WINDOW_WIDTH / WINDOW_HEIGHT, 0.1, 100.0)
 
-    # Test sahnesi: 3x3 grid küpler (z=0 düzleminde)
-    cube_positions = [
-        glm.vec3(x * 2.5, 0.5, z * 2.5)
-        for x in (-1, 0, 1)
-        for z in (-1, 0, 1)
-    ]
-    cube_colors = [
-        glm.vec3(0.85, 0.55, 0.25),
-        glm.vec3(0.45, 0.70, 0.35),
-        glm.vec3(0.30, 0.55, 0.85),
-        glm.vec3(0.85, 0.40, 0.60),
-        glm.vec3(0.75, 0.75, 0.30),
-        glm.vec3(0.55, 0.40, 0.80),
-        glm.vec3(0.40, 0.80, 0.75),
-        glm.vec3(0.90, 0.65, 0.45),
-        glm.vec3(0.65, 0.65, 0.65),
-    ]
+    wall_positions = maze.wall_positions()
+    wall_scale = glm.vec3(maze.cell_size, maze.wall_height, maze.cell_size)
+
+    floor_model = glm.translate(glm.mat4(1.0), maze.floor_center())
+    floor_model = glm.scale(floor_model, maze.floor_scale())
 
     last_time = glfw.get_time()
 
@@ -108,10 +100,17 @@ def main() -> int:
         shader.set_mat4("uProjection", projection)
         shader.set_mat4("uView", view)
 
-        for pos, color in zip(cube_positions, cube_colors):
+        # Zemin
+        shader.set_mat4("uModel", floor_model)
+        shader.set_vec3("uColor", FLOOR_COLOR)
+        cube.draw()
+
+        # Duvarlar
+        shader.set_vec3("uColor", WALL_COLOR)
+        for pos in wall_positions:
             model = glm.translate(glm.mat4(1.0), pos)
+            model = glm.scale(model, wall_scale)
             shader.set_mat4("uModel", model)
-            shader.set_vec3("uColor", color)
             cube.draw()
 
         glfw.swap_buffers(window)
