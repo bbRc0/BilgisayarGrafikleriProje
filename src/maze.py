@@ -87,3 +87,15 @@ class Maze:
                         gz * self.cell_size,
                     )
         return glm.vec3(0.0, eye_height, 0.0)
+
+    def exit_world_position(self, height: float = 1.0) -> glm.vec3:
+        """Labirentin çıkışı: en uzak (sona en yakın) yol hücresi."""
+        for gz in range(self.height - 1, -1, -1):
+            for gx in range(self.width - 1, -1, -1):
+                if self.grid[gz][gx] == 0:
+                    return glm.vec3(
+                        gx * self.cell_size,
+                        height,
+                        gz * self.cell_size,
+                    )
+        return glm.vec3(0.0, height, 0.0)

@@ -48,21 +48,62 @@ class Camera:
     def get_view(self) -> glm.mat4:
         return glm.lookAt(self.position, self.position + self.front, self.up)
 
-    def process_keyboard(self, window, dt: float) -> None:
+    # Player'ın yatay düzlemdeki çarpışma yarıçapı (cell_size=2 ile uyumlu küçük değer)
+    PLAYER_RADIUS = 0.30
+
+    def process_keyboard(self, window, dt: float, maze=None) -> None:
         velocity = self.move_speed * dt
         # Y bileşenini sıfırlayarak hareketi yere paralel tutuyoruz —
         # yukarı bakınca öne basmak uçmaya yol açmasın.
         forward = glm.normalize(glm.vec3(self.front.x, 0.0, self.front.z))
         right = glm.normalize(glm.vec3(self.right.x, 0.0, self.right.z))
 
+        dx = 0.0
+        dz = 0.0
         if glfw.get_key(window, glfw.KEY_W) == glfw.PRESS:
-            self.position += forward * velocity
+            dx += forward.x * velocity
+            dz += forward.z * velocity
         if glfw.get_key(window, glfw.KEY_S) == glfw.PRESS:
-            self.position -= forward * velocity
+            dx -= forward.x * velocity
+            dz -= forward.z * velocity
         if glfw.get_key(window, glfw.KEY_A) == glfw.PRESS:
-            self.position -= right * velocity
+            dx -= right.x * velocity
+            dz -= right.z * velocity
         if glfw.get_key(window, glfw.KEY_D) == glfw.PRESS:
-            self.position += right * velocity
+            dx += right.x * velocity
+            dz += right.z * velocity
+
+        if maze is None:
+            self.position.x += dx
+            self.position.z += dz
+            return
+
+        # İki ekseni ayrı dene; bir eksende duvara çarpsak bile diğerinde
+        # kayabilelim (wall sliding).
+        new_x = self.position.x + dx
+        if not self._collides(new_x, self.position.z, maze):
+            self.position.x = new_x
+        new_z = self.position.z + dz
+        if not self._collides(self.position.x, new_z, maze):
+            self.position.z = new_z
+
+    def _collides(self, x: float, z: float, maze) -> bool:
+        """Player çevresindeki 4 köşeden herhangi biri duvar hücresinde ise çarpışma."""
+        r = self.PLAYER_RADIUS
+        half = maze.cell_size * 0.5
+        cs = maze.cell_size
+        corners = (
+            (x - r, z - r),
+            (x + r, z - r),
+            (x - r, z + r),
+            (x + r, z + r),
+        )
+        for cx, cz in corners:
+            gx = int((cx + half) // cs)
+            gz = int((cz + half) // cs)
+            if maze.is_wall(gx, gz):
+                return True
+        return False
 
     def process_mouse(self, x: float, y: float) -> None:
         if self._last_mouse_x is None:

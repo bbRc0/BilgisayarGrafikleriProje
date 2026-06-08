@@ -13,7 +13,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 
 SIZE = 256
@@ -129,17 +129,53 @@ def make_floor(seed: int = 123) -> Image.Image:
     return Image.fromarray(img, mode="RGB")
 
 
+def make_finish() -> Image.Image:
+    """Labirentin sonunda dönen küp için 'FINISH' yazılı texture."""
+    img = Image.new("RGB", (SIZE, SIZE), (180, 30, 30))   # koyu kırmızı zemin
+    draw = ImageDraw.Draw(img)
+
+    # Bold sans-serif font dene; yoksa default'a düş
+    font: ImageFont.ImageFont
+    for font_path in ("C:/Windows/Fonts/arialbd.ttf", "C:/Windows/Fonts/arial.ttf"):
+        try:
+            font = ImageFont.truetype(font_path, 56)
+            break
+        except OSError:
+            continue
+    else:
+        font = ImageFont.load_default()
+
+    text = "FINISH"
+    bbox = draw.textbbox((0, 0), text, font=font)
+    text_w = bbox[2] - bbox[0]
+    text_h = bbox[3] - bbox[1]
+    x = (SIZE - text_w) // 2 - bbox[0]
+    y = (SIZE - text_h) // 2 - bbox[1]
+
+    # Ufak gölge / parlama hissi: önce koyu offset, üstüne ana renk
+    draw.text((x + 2, y + 2), text, font=font, fill=(80, 10, 10))
+    draw.text((x, y), text, font=font, fill=(255, 230, 80))   # sarı yazı
+
+    # Kenar çerçevesi
+    draw.rectangle([(4, 4), (SIZE - 5, SIZE - 5)], outline=(255, 230, 80), width=4)
+
+    return img
+
+
 def main() -> None:
     ASSETS_DIR.mkdir(parents=True, exist_ok=True)
 
     wall_path = ASSETS_DIR / "wall.png"
     floor_path = ASSETS_DIR / "floor.png"
+    finish_path = ASSETS_DIR / "finish.png"
 
     make_wall().save(wall_path)
     make_floor().save(floor_path)
+    make_finish().save(finish_path)
 
     print(f"Yazildi: {wall_path}")
     print(f"Yazildi: {floor_path}")
+    print(f"Yazildi: {finish_path}")
 
 
 if __name__ == "__main__":

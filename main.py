@@ -1,8 +1,9 @@
-"""Labirent oyunu - 5. adım: duvar ve zemin dokuları.
+"""Labirent oyunu - 7. adım: AABB çarpışma kontrolü.
 
-Duvarlar için wall.png, zemin için floor.png Pillow ile yüklenip
-GL_TEXTURE_2D olarak GPU'ya aktarılıyor. Mipmap üretiliyor, REPEAT
-sarma modu kullanılıyor. Çarpışma kontrolü bir sonraki adımda.
+Oyuncu artık duvarlardan geçemez. Camera.process_keyboard her eksende
+ayrı ayrı çarpışma kontrolü yapıyor: bir duvara çarpsan bile diğer
+eksende kaymaya devam edebilirsin (wall sliding). Tüm zorunlu özellikler
+tamamlandı.
 """
 
 import sys
@@ -70,9 +71,18 @@ def main() -> int:
 
     wall_tex = Texture(PROJECT_ROOT / "assets" / "wall.png")
     floor_tex = Texture(PROJECT_ROOT / "assets" / "floor.png")
+    finish_tex = Texture(PROJECT_ROOT / "assets" / "finish.png")
 
     shader.use()
     shader.set_int("uTexture", 0)  # sampler texture unit 0'dan okusun
+
+    # Aydınlatma uniform'ları (sahne boyunca sabit)
+    light_dir = glm.normalize(glm.vec3(0.4, -1.0, 0.5))   # yukarıdan-yandan aşağı
+    shader.set_vec3("uLightDir", light_dir)
+    shader.set_vec3("uLightColor", glm.vec3(0.85, 0.82, 0.73))  # hafif sıcak, daha yumuşak güneş
+    shader.set_vec3("uAmbient", glm.vec3(0.36, 0.36, 0.40))     # karanlık tarafı kaldıran ambient
+    shader.set_float("uShininess", 32.0)
+    shader.set_float("uSpecularStrength", 0.35)
 
     camera = Camera(position=maze.start_world_position(eye_height=1.0))
     glfw.set_cursor_pos_callback(window, lambda w, x, y: camera.process_mouse(x, y))
@@ -85,6 +95,9 @@ def main() -> int:
     floor_model = glm.translate(glm.mat4(1.0), maze.floor_center())
     floor_model = glm.scale(floor_model, maze.floor_scale())
 
+    finish_position = maze.exit_world_position(height=1.0)
+    finish_scale = glm.vec3(0.7)
+
     last_time = glfw.get_time()
 
     while not glfw.window_should_close(window):
@@ -92,7 +105,7 @@ def main() -> int:
         dt = now - last_time
         last_time = now
 
-        camera.process_keyboard(window, dt)
+        camera.process_keyboard(window, dt, maze)
 
         GL.glClearColor(0.10, 0.12, 0.16, 1.0)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT | GL.GL_DEPTH_BUFFER_BIT)
@@ -102,6 +115,7 @@ def main() -> int:
         shader.use()
         shader.set_mat4("uProjection", projection)
         shader.set_mat4("uView", view)
+        shader.set_vec3("uViewPos", camera.position)
 
         # Zemin: dokuyu defalarca tile et, böylece plakalar net görünür
         floor_tex.bind(0)
@@ -118,12 +132,22 @@ def main() -> int:
             shader.set_mat4("uModel", model)
             cube.draw()
 
+        # FINISH küpü - labirentin sonunda Y ekseninde sürekli dönüyor.
+        # Rotation şartını karşılar ve oyuna görsel hedef ekler.
+        finish_tex.bind(0)
+        finish_model = glm.translate(glm.mat4(1.0), finish_position)
+        finish_model = glm.rotate(finish_model, now * 1.2, glm.vec3(0.0, 1.0, 0.0))
+        finish_model = glm.scale(finish_model, finish_scale)
+        shader.set_mat4("uModel", finish_model)
+        cube.draw()
+
         glfw.swap_buffers(window)
         glfw.poll_events()
 
     cube.delete()
     wall_tex.delete()
     floor_tex.delete()
+    finish_tex.delete()
     glfw.terminate()
     return 0
 
