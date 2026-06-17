@@ -42,6 +42,8 @@ python main.py
 | `Space` | FINISH küpüne yakınken kazanma kontrolü |
 | `ESC` | Çıkış |
 
+## Video Linki 
+https://youtu.be/RuJJeigqC1E
 ## Yazar
 
 Ahmet Melih Üstüner
